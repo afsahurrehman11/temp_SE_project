@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { jobApi, Job } from '@/lib/api'
-import { Briefcase, Plus, Search, Loader2, Trash2, Edit, Users, Calendar, CheckCircle, XCircle } from 'lucide-react'
+import { Briefcase, Search, Loader2, Trash2, Edit, Users, Calendar, CheckCircle, XCircle } from 'lucide-react'
 import Link from 'next/link'
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [showCreateModal, setShowCreateModal] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -73,16 +72,9 @@ export default function JobsPage() {
         <div>
           <h1 className="text-4xl font-black">Job Postings</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Create and manage your job openings
+            View and manage your job openings
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 transition-all duration-200 hover:scale-105 active:scale-95"
-        >
-          <Plus className="w-5 h-5" />
-          Create Job
-        </button>
       </div>
 
       {/* Search Bar */}
@@ -112,14 +104,8 @@ export default function JobsPage() {
           <Briefcase className="w-16 h-16 mx-auto mb-4 text-gray-400" />
           <h3 className="text-xl font-bold mb-2">No job postings yet</h3>
           <p className="text-gray-500 mb-6">
-            Create your first job posting to start matching candidates
+            Jobs must be created manually via database
           </p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary/90"
-          >
-            Create Your First Job
-          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -195,173 +181,6 @@ export default function JobsPage() {
           ))}
         </div>
       )}
-
-      {/* Create Job Modal */}
-      {showCreateModal && (
-        <CreateJobModal
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={() => {
-            setShowCreateModal(false)
-            fetchJobs()
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-function CreateJobModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    location: '',
-    job_type: 'full-time',
-    requirements: '',
-  })
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!formData.title || !formData.description) {
-      setError('Title and description are required')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      // Parse requirements as array of strings (one per line)
-      const requirements = formData.requirements
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
-
-      await jobApi.createJob({
-        title: formData.title,
-        description: formData.description,
-        requirements: requirements,
-        location: formData.location || undefined,
-        job_type: formData.job_type || 'full-time'
-      })
-      
-      onSuccess()
-    } catch (err: any) {
-      console.error('Error creating job:', err)
-      const errorDetail = err.response?.data?.detail
-      if (Array.isArray(errorDetail)) {
-        setError(errorDetail.map((e: any) => e.msg).join(', '))
-      } else {
-        setError(errorDetail || err.message || 'Failed to create job')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-2xl font-bold">Create Job Posting</h2>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 text-red-700 dark:text-red-400">
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Job Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-transparent"
-              placeholder="e.g. Senior Frontend Developer"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Description <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-transparent min-h-[150px]"
-              placeholder="Describe the role, responsibilities, and ideal candidate..."
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              Required Skills (one per line)
-            </label>
-            <textarea
-              value={formData.requirements}
-              onChange={(e) => setFormData({ ...formData, requirements: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-transparent min-h-[100px]"
-              placeholder="React&#10;TypeScript&#10;Node.js&#10;GraphQL&#10;5+ years experience"
-            />
-            <p className="text-xs text-gray-500 mt-1">Enter each requirement on a new line</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Location</label>
-              <input
-                type="text"
-                value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-transparent"
-                placeholder="e.g. Remote, New York"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Job Type</label>
-              <select
-                value={formData.job_type}
-                onChange={(e) => setFormData({ ...formData, job_type: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-transparent"
-              >
-                <option value="full-time">Full-time</option>
-                <option value="part-time">Part-time</option>
-                <option value="contract">Contract</option>
-                <option value="internship">Internship</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              disabled={loading}
-            >
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {loading ? 'Creating...' : 'Create Job'}
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   )
 }

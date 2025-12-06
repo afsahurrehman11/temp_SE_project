@@ -1,4 +1,11 @@
-/** @type {import('next').NextConfig} */
+/**
+ * Next.js Configuration
+ * 
+ * To run on a custom port: npm run dev -- -p 3005
+ * To change backend API URL: Set NEXT_PUBLIC_API_URL in .env.local
+ * 
+ * @type {import('next').NextConfig}
+ */
 const nextConfig = {
   images: {
     remotePatterns: [

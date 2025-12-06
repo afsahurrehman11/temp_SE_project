@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, Float, ForeignKey, Boolean, JSON
+from sqlalchemy import Column, Integer, String, DateTime, Text, Float, ForeignKey, Boolean, JSON, UniqueConstraint
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -108,10 +108,28 @@ class Notification(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     title = Column(String, nullable=False)
     message = Column(Text, nullable=False)
-    type = Column(String, default="info")  # info, success, warning, error, match, job, resume
-    link = Column(String)  # Optional link to related resource
+    type = Column(String, default="info")  # info, success, warning, error, match
+    link = Column(String, nullable=True)  # Optional link to related resource
     is_read = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
     user = relationship("User", backref="notifications")
+
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    resume_id = Column(Integer, ForeignKey("resumes.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships - using backref to automatically create reverse relationships
+    user = relationship("User", backref="user_favorites")
+    resume = relationship("Resume", backref="resume_favorites")
+    
+    # Unique constraint to prevent duplicate favorites
+    __table_args__ = (
+        UniqueConstraint('user_id', 'resume_id', name='_user_resume_uc'),
+    )

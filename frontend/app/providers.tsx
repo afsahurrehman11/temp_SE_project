@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState, ReactNode } from 'react'
+import { LanguageProvider } from '@/contexts/LanguageContext'
 
 interface ProvidersProps {
   children: ReactNode
@@ -19,7 +20,9 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <LanguageProvider>
+        {children}
+      </LanguageProvider>
     </QueryClientProvider>
   )
 }

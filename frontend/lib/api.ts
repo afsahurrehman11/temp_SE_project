@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const API_V1 = `${API_BASE_URL}/api/v1`
 
 export const api = axios.create({
@@ -114,6 +114,15 @@ export interface DashboardStats {
   shortlisted: number
 }
 
+export interface MatchesAnalytics {
+  total_matches: number
+  average_score: number
+  high_matches: number
+  medium_matches: number
+  low_matches: number
+  score_distribution: Record<string, number>
+}
+
 // Authentication API
 export const authApi = {
   register: async (data: { email: string; username: string; password: string; full_name?: string }) => {
@@ -124,17 +133,17 @@ export const authApi = {
     const formData = new FormData()
     formData.append('username', email)
     formData.append('password', password)
-    
+
     const response = await api.post<{ access_token: string; token_type: string }>(
       '/auth/login',
       formData,
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     )
-    
+
     if (typeof window !== 'undefined') {
       localStorage.setItem('token', response.data.access_token)
     }
-    
+
     return response
   },
 
@@ -164,15 +173,15 @@ export const authApi = {
   uploadAvatar: async (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    
+
     const response = await api.post<User>('/auth/me/avatar', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
-    
+
     if (typeof window !== 'undefined') {
       localStorage.setItem('user', JSON.stringify(response.data))
     }
-    
+
     return response
   },
 }
@@ -185,16 +194,38 @@ export const resumeApi = {
     if (jobId) {
       formData.append('job_id', jobId.toString())
     }
-    
+
     return api.post('/resumes/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
-  
+
+  uploadResumesWithJob: async (files: File[], jobDetails: {
+    job_title: string
+    job_description: string
+    job_requirements?: string
+    top_n?: number
+  }) => {
+    const formData = new FormData()
+    files.forEach((file) => formData.append('files', file))
+    formData.append('job_title', jobDetails.job_title)
+    formData.append('job_description', jobDetails.job_description)
+    if (jobDetails.job_requirements) {
+      formData.append('job_requirements', jobDetails.job_requirements)
+    }
+    if (jobDetails.top_n) {
+      formData.append('top_n', jobDetails.top_n.toString())
+    }
+
+    return api.post('/resumes/upload-and-rank', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+
   getResumes: async (skip = 0, limit = 100, jobId?: number) => {
     const params = new URLSearchParams({ skip: skip.toString(), limit: limit.toString() })
     if (jobId) params.append('job_id', jobId.toString())
-    
+
     return api.get<Resume[]>(`/resumes?${params}`)
   },
 
@@ -213,14 +244,13 @@ export const resumeApi = {
 
 // Job API
 export const jobApi = {
-  createJob: async (data: { title: string; description: string; requirements?: string[]; location?: string; job_type?: string; status?: string }) => {
-    return api.post<Job>('/jobs/', data)
-  },
+  // Job creation disabled - jobs must be created manually via database
+  // createJob method removed
 
   getJobs: async (skip = 0, limit = 100, statusFilter?: string) => {
     const params = new URLSearchParams({ skip: skip.toString(), limit: limit.toString() })
     if (statusFilter) params.append('status_filter', statusFilter)
-    
+
     return api.get<Job[]>(`/jobs?${params}`)
   },
 
@@ -239,7 +269,7 @@ export const jobApi = {
   getJobMatches: async (jobId: number, minScore?: number) => {
     const params = new URLSearchParams()
     if (minScore !== undefined) params.append('min_score', minScore.toString())
-    
+
     return api.get<Match[]>(`/jobs/${jobId}/matches?${params}`)
   },
 
@@ -265,20 +295,34 @@ export const analyticsApi = {
   getMatchesAnalytics: async (jobId?: number, minScore = 0) => {
     const params = new URLSearchParams({ min_score: minScore.toString() })
     if (jobId) params.append('job_id', jobId.toString())
-    
-    return api.get(`/analytics/matches?${params}`)
+
+    return api.get<MatchesAnalytics>(`/analytics/matches?${params}`)
   },
 
   getJobStats: async (jobId: number) => {
     return api.get(`/analytics/jobs/${jobId}/stats`)
   },
 
-  getTrends: async () => {
-    return api.get('/analytics/trends')
+  getTrends: async (period = '30d') => {
+    return api.get(`/analytics/trends?period=${period}`)
   },
 
-  exportAnalytics: async (format: 'json' | 'csv' = 'json') => {
+  exportAnalytics: async (format = 'json') => {
     return api.get(`/analytics/export?format=${format}`)
+  },
+
+  getRankedOverview: async (jobId?: number, topK = 50, topN = 10) => {
+    const params = new URLSearchParams({ top_k: topK.toString(), top_n: topN.toString() })
+    if (jobId) params.append('job_id', jobId.toString())
+
+    return api.get(`/analytics/ranked-overview?${params}`)
+  },
+
+  getRankedCandidates: async (jobId?: number) => {
+    const params = new URLSearchParams()
+    if (jobId) params.append('job_id', jobId.toString())
+
+    return api.get(`/analytics/ranked-candidates?${params}`)
   },
 }
 
@@ -313,10 +357,55 @@ export const chatApi = {
   },
 }
 
+// Ranked Resumes API
+export interface RankedResumeItem {
+  resume_id: number
+  candidate_name: string
+  embedding_score: number
+  rerank_score?: number
+  skills: string[]
+  summary: string
+  explanation: string
+  text?: string
+  metadata?: any
+}
+
+export interface RankedResumesRequest {
+  job_description: string
+  top_k?: number
+  top_n?: number
+}
+
+export interface RankedResumesResponse {
+  ranked_resumes: RankedResumeItem[]
+  pipeline_config: {
+    top_k: number
+    top_n: number
+    reranker_used: boolean
+    llm_used: boolean
+  }
+  stages?: any
+}
+
+export const rankedResumesApi = {
+  matchResumes: async (request: RankedResumesRequest) => {
+    return api.post<RankedResumesResponse>('/ranked-resumes/match', request)
+  },
+
+  getForJob: async (jobId: number, topK = 50, topN = 5) => {
+    return api.get<RankedResumesResponse>(`/ranked-resumes/job/${jobId}?top_k=${topK}&top_n=${topN}`)
+  }
+}
+
 // Notifications API
 export const notificationsApi = {
   getNotifications: async (unreadOnly = false, skip = 0, limit = 50) => {
-    return api.get<Notification[]>(`/notifications/?unread_only=${unreadOnly}&skip=${skip}&limit=${limit}`)
+    const params = new URLSearchParams({
+      skip: skip.toString(),
+      limit: limit.toString(),
+      unread_only: unreadOnly.toString()
+    })
+    return api.get<Notification[]>(`/notifications?${params}`)
   },
 
   getUnreadCount: async () => {
@@ -333,5 +422,28 @@ export const notificationsApi = {
 
   deleteNotification: async (notificationId: number) => {
     return api.delete(`/notifications/${notificationId}`)
+  },
+}
+
+// Favorites API
+export const favoritesApi = {
+  addFavorite: async (resumeId: number) => {
+    return api.post(`/favorites/${resumeId}`)
+  },
+
+  removeFavorite: async (resumeId: number) => {
+    return api.delete(`/favorites/${resumeId}`)
+  },
+
+  getFavorites: async () => {
+    return api.get('/favorites')
+  },
+
+  checkFavorite: async (resumeId: number) => {
+    return api.get(`/favorites/check/${resumeId}`)
+  },
+
+  bulkCheckFavorites: async (resumeIds: number[]) => {
+    return api.get(`/favorites/bulk-check?resume_ids=${resumeIds.join(',')}`)
   },
 }

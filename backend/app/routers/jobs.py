@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Optional
+import logging
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models import User, Job, Match, Resume
 from app.schemas import JobCreate, JobUpdate, JobResponse, MatchResponse
 from app.auth import get_current_active_user
@@ -10,35 +11,11 @@ from app.services.rag_service import rag_service
 from app.routers.notifications import create_notification
 
 router = APIRouter(prefix="/jobs", tags=["Jobs"])
+logger = logging.getLogger(__name__)
 
 
-@router.post("/", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
-def create_job(
-    job: JobCreate,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Create a new job posting"""
-    db_job = Job(
-        **job.model_dump(),
-        user_id=current_user.id
-    )
-    
-    db.add(db_job)
-    db.commit()
-    db.refresh(db_job)
-    
-    # Create notification
-    create_notification(
-        db=db,
-        user_id=current_user.id,
-        title="Job Posted Successfully",
-        message=f"Your job posting '{job.title}' has been created and is now active.",
-        notification_type="job",
-        link=f"/jobs/{db_job.id}"
-    )
-    
-    return db_job
+# Job creation has been disabled - jobs must be created manually via database
+# @router.post("/") endpoint removed
 
 
 @router.get("/", response_model=List[JobResponse])
@@ -302,28 +279,32 @@ async def match_all_resumes(
     resumes = db.query(Resume).all()
     
     matched_count = 0
-    for resume in resumes:
-        # Check if already matched
-        existing = db.query(Match).filter(
-            Match.job_id == job_id,
-            Match.resume_id == resume.id
-        ).first()
-        
-        if not existing:
-            # Create placeholder
-            match = Match(
-                job_id=job_id,
-                resume_id=resume.id,
-                match_score=0,
-                skills_match={},
-                summary="Analyzing..."
-            )
-            db.add(match)
-            db.commit()
+    # Batch processing for better performance
+    batch_size = 10
+    for i in range(0, len(resumes), batch_size):
+        batch = resumes[i:i + batch_size]
+        for resume in batch:
+            # Check if already matched
+            existing = db.query(Match).filter(
+                Match.job_id == job_id,
+                Match.resume_id == resume.id
+            ).first()
             
-            # Schedule background analysis
-            background_tasks.add_task(analyze_resume_background, job_id, resume.id, db)
-            matched_count += 1
+            if not existing:
+                # Create placeholder
+                match = Match(
+                    job_id=job_id,
+                    resume_id=resume.id,
+                    match_score=0,
+                    skills_match={},
+                    summary="Analyzing..."
+                )
+                db.add(match)
+                db.commit()
+                
+                # Schedule background analysis
+                background_tasks.add_task(analyze_resume_background, job_id, resume.id, db)
+                matched_count += 1
     
     return {
         "message": f"Started matching {matched_count} resumes",

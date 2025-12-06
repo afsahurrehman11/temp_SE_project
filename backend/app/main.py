@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.config import settings
 from app.database import engine, Base
-from app.routers import auth, jobs, resumes, analytics, chat, notifications
+from app.routers import auth, jobs, resumes, analytics, chat, notifications, ranked_resumes, favorites
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -35,13 +35,26 @@ app = FastAPI(
 )
 
 # CORS Middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# In development mode, allow all localhost origins (any port)
+# In production, use specific CORS_ORIGINS from environment
+if settings.ENVIRONMENT == "development" and settings.CORS_ALLOW_ALL_LOCALHOST:
+    # Allow all localhost and 127.0.0.1 origins in development
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Use specific origins in production
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Create uploads directory if it doesn't exist
 uploads_dir = Path("uploads")
@@ -107,11 +120,12 @@ async def startup_event():
         from app.services.rag_service import rag_service
         logger.info("🤖 Verifying RAG Service...")
         logger.info(f"   ✅ Embeddings Model: {rag_service.embeddings.model_name if rag_service.embeddings else 'Not loaded'}")
-        logger.info(f"   {'✅' if rag_service.llm_available else '⚠️'} LLM Available: {rag_service.llm_available}")
-        if rag_service.llm_available:
-            logger.info(f"   ✅ LLM Model: {settings.LLM_REPO_ID}")
-        else:
-            logger.warning("   ⚠️  LLM not available - AI features will be limited")
+        logger.info(f"   {'✅' if rag_service.reranker_available else '⚠️'} Reranker Available: {rag_service.reranker_available}")
+        logger.info(f"   {'✅' if rag_service.summarizer_available else '⚠️'} Summarizer Available: {rag_service.summarizer_available}")
+        if not rag_service.reranker_available:
+            logger.warning("   ⚠️  Reranker not available - match scoring will be limited")
+        if not rag_service.summarizer_available:
+            logger.warning("   ⚠️  Summarizer not available - summaries will be truncated")
         logger.info("🚀 RAG Service ready!")
     except Exception as e:
         logger.error(f"❌ RAG Service initialization failed: {str(e)}")
@@ -124,6 +138,8 @@ app.include_router(jobs.router, prefix=settings.API_V1_PREFIX)
 app.include_router(resumes.router, prefix=settings.API_V1_PREFIX)
 app.include_router(analytics.router, prefix=settings.API_V1_PREFIX)
 app.include_router(chat.router, prefix=settings.API_V1_PREFIX)
+app.include_router(ranked_resumes.router, prefix=settings.API_V1_PREFIX)
+app.include_router(favorites.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notifications.router)
 
 

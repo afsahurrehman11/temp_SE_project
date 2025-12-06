@@ -31,7 +31,7 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
-      
+
       // Fetch dashboard stats
       const statsResponse = await analyticsApi.getDashboardStats()
       setStats(statsResponse.data)
@@ -40,8 +40,8 @@ export default function DashboardPage() {
       const skillsResponse = await analyticsApi.getSkillsDistribution(4)
       setTopSkills(skillsResponse.data)
 
-      // Fetch recent resumes
-      const resumesResponse = await resumeApi.getResumes(0, 4)
+      // Fetch recent resumes - get all resumes ordered by most recent
+      const resumesResponse = await resumeApi.getResumes(0, 100)
       setRecentResumes(resumesResponse.data)
 
     } catch (error) {
@@ -55,12 +55,41 @@ export default function DashboardPage() {
     const date = new Date(dateString)
     const now = new Date()
     const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-    
+
     if (seconds < 60) return 'just now'
     if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`
     if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`
     if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`
     return date.toLocaleDateString()
+  }
+
+  const handleResumeClick = async (resumeId: number) => {
+    try {
+      // Fetch PDF with authentication
+      const token = localStorage.getItem('token')
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+      const response = await fetch(`${apiUrl}/api/v1/resumes/${resumeId}/download`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to load resume')
+      }
+
+      // Create blob and open in new tab
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      window.open(url, '_blank', 'noopener,noreferrer')
+
+      // Clean up blob URL after a short delay
+      setTimeout(() => window.URL.revokeObjectURL(url), 100)
+    } catch (error) {
+      console.error('Error opening resume:', error)
+      alert('Failed to open resume. Please try again.')
+    }
   }
 
   if (loading) {
@@ -85,20 +114,13 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         <StatsCard
           title="Total Resumes"
           value={stats?.total_resumes.toString() || '0'}
           change={`${stats?.pending_reviews || 0} pending review`}
           icon={<FileText className="w-5 h-5 sm:w-6 sm:h-6" />}
           trend="neutral"
-        />
-        <StatsCard
-          title="Active Jobs"
-          value={stats?.total_jobs.toString() || '0'}
-          change="Open positions"
-          icon={<Briefcase className="w-5 h-5 sm:w-6 sm:h-6" />}
-          trend="up"
         />
         <StatsCard
           title="Total Matches"
@@ -118,13 +140,21 @@ export default function DashboardPage() {
 
       {/* Recent Activity */}
       <div className="glassmorphism-card rounded-xl p-4 sm:p-6 transition-all duration-300">
-        <h2 className="text-lg sm:text-xl font-bold mb-4">Recently Uploaded Resumes</h2>
-        <div className="space-y-3 sm:space-y-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg sm:text-xl font-bold">Recently Uploaded Resumes</h2>
+          {recentResumes.length > 0 && (
+            <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+              {recentResumes.length} resume{recentResumes.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+        <div className="max-h-[32rem] overflow-y-auto space-y-3 sm:space-y-4 pr-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 dark:hover:scrollbar-thumb-gray-500">
           {recentResumes.length > 0 ? (
             recentResumes.map((resume, index) => (
               <div
                 key={resume.id}
-                className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-all duration-200 cursor-pointer hover:scale-[1.01] gap-3 sm:gap-0"
+                onClick={() => handleResumeClick(resume.id)}
+                className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 sm:p-4 rounded-lg hover:bg-primary/5 dark:hover:bg-primary/10 transition-all duration-200 cursor-pointer hover:scale-[1.02] hover:shadow-md gap-3 sm:gap-0 border border-transparent hover:border-primary/20"
               >
                 <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
                   <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -169,11 +199,11 @@ export default function DashboardPage() {
               Upload New Resumes
             </Link>
             <Link
-              href="/jobs"
+              href="/analytics"
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 sm:py-3 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-black/5 dark:hover:bg-white/5 transition-all duration-200 hover:scale-105 active:scale-95 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
             >
               <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
-              Create Job Posting
+              View Analytics
             </Link>
           </div>
         </div>

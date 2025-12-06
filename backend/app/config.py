@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     PROJECT_NAME: str = "ResumeMatch AI"
     ENVIRONMENT: str = "development"
+    ENABLE_DEMO_MODE: bool = True
     
     # Security
     SECRET_KEY: str
@@ -30,12 +31,17 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
     
-    # CORS - Allow multiple frontend ports for development
+    # CORS Configuration
+    # In development: allow all localhost/127.0.0.1 origins (any port)
+    # In production: set CORS_ORIGINS environment variable with specific domains
+    CORS_ALLOW_ALL_LOCALHOST: bool = True  # Set to False in production
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://localhost:3002",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001"
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002"
     ]
     
     # File Upload
@@ -47,8 +53,10 @@ class Settings(BaseSettings):
     LLM_MAX_LENGTH: int = 1024
     LLM_TEMPERATURE: float = 0.1
     
-    # Embeddings
-    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    # Embeddings & RAG Models (Matched with Demo Notebook)
+    EMBEDDING_MODEL: str = "sentence-transformers/all-mpnet-base-v2"
+    RERANKER_MODEL: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    SUMMARIZER_MODEL: str = "t5-small"
     
     # Text Splitting
     CHUNK_SIZE: int = 1000

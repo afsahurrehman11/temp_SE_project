@@ -8,7 +8,10 @@ import Link from 'next/link'
 
 export default function UploadPage() {
   const [files, setFiles] = useState<File[]>([])
+  const [jobTitle, setJobTitle] = useState('')
   const [jobDescription, setJobDescription] = useState('')
+  const [jobRequirements, setJobRequirements] = useState('')
+  const [topN, setTopN] = useState(10)
   const [isProcessing, setIsProcessing] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -34,44 +37,56 @@ export default function UploadPage() {
   }
 
   const handleProcess = async () => {
-    if (files.length === 0 || !jobDescription.trim()) {
+    if (files.length === 0 || !jobTitle.trim() || !jobDescription.trim()) {
       return
     }
 
     setIsProcessing(true)
     setError(null)
     setShowSuccessNotification(false)
-    
+
     try {
-      // Upload resumes to backend
-      const response = await resumeApi.uploadResumes(files)
-      
-      console.log('Upload response:', response.data)
-      
+      console.log('🚀 Starting resume upload and matching...')
+      console.log(`📄 Files: ${files.length}`)
+      console.log(`💼 Job: ${jobTitle}`)
+      console.log(`🎯 Top N: ${topN}`)
+
+      // Upload resumes with job description for automatic matching
+      const response = await resumeApi.uploadResumesWithJob(files, {
+        job_title: jobTitle,
+        job_description: jobDescription,
+        job_requirements: jobRequirements,
+        top_n: topN
+      })
+
+      console.log('✅ Upload and matching complete:', response.data)
+
       // Set uploaded files from response
       setUploadedFiles(files.map(f => f.name))
-      
+
       // Show success notification
       setShowSuccessNotification(true)
-      
-      // Clear files after successful upload
+
+      // Clear form after successful upload
       setFiles([])
+      setJobTitle('')
       setJobDescription('')
-      
+      setJobRequirements('')
+
       // Auto-hide notification after 10 seconds
       setTimeout(() => {
         setShowSuccessNotification(false)
       }, 10000)
-      
+
     } catch (err: any) {
-      console.error('Upload error:', err)
+      console.error('❌ Upload error:', err)
       setError(err.response?.data?.detail || 'Failed to upload resumes. Please try again.')
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const canProcess = files.length > 0 && jobDescription.trim().length > 0
+  const canProcess = files.length > 0 && jobTitle.trim().length > 0 && jobDescription.trim().length > 0
 
   return (
     <div className="space-y min-h-screen p-8 lg:p-12">
@@ -79,7 +94,7 @@ export default function UploadPage() {
       <div>
         <h1 className="text-4xl font-black text-text-light dark:text-text-dark">Upload and Match</h1>
         <p className="text-slate-600 dark:text-slate-400 mt-2 text-base">
-          Upload resumes and paste a job description to find the best candidates.
+          Upload resumes and provide job details to automatically rank the best candidates.
         </p>
       </div>
 
@@ -91,11 +106,10 @@ export default function UploadPage() {
             <div className="p-6">
               <div
                 {...getRootProps()}
-                className={`relative flex flex-col items-center gap-6 rounded-xl border-2 border-dashed transition-all duration-200 px-6 py-12 cursor-pointer ${
-                  isDragActive
+                className={`relative flex flex-col items-center gap-6 rounded-xl border-2 border-dashed transition-all duration-200 px-6 py-12 cursor-pointer ${isDragActive
                     ? 'border-primary bg-primary/5 scale-[0.98]'
                     : 'border-gray-300 dark:border-gray-600 hover:border-primary/50 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                }`}
+                  }`}
               >
                 <input {...getInputProps()} />
                 <div className="flex items-center justify-center w-16 h-16 bg-primary/10 dark:bg-primary/20 rounded-full text-primary">
@@ -168,20 +182,73 @@ export default function UploadPage() {
             </div>
           </div>
 
-          {/* Job Description */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="space-y-3">
+          {/* Job Details */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+            <h3 className="text-lg font-bold text-text-light dark:text-white">Job Details</h3>
+
+            {/* Job Title */}
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-text-light dark:text-white">
+                Job Title *
+              </label>
+              <input
+                type="text"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+                placeholder="e.g., Senior Data Engineer"
+                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-text-light dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent transition-all"
+              />
+            </div>
+
+            {/* Job Description */}
+            <div className="space-y-2">
               <label className="block text-sm font-bold text-text-light dark:text-white">
                 Job Description *
               </label>
               <textarea
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
-                placeholder="Paste the job description here. Include required skills, experience, and qualifications..."
-                className="w-full h-48 p-4 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-text-light dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent transition-all"
+                placeholder="Paste the job description here. Include responsibilities, required skills, and qualifications..."
+                className="w-full h-32 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-text-light dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent transition-all"
               />
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {jobDescription.length} characters
+              </p>
+            </div>
+
+            {/* Job Requirements */}
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-text-light dark:text-white">
+                Key Requirements (Optional)
+              </label>
+              <textarea
+                value={jobRequirements}
+                onChange={(e) => setJobRequirements(e.target.value)}
+                placeholder="Python, AWS, 5+ years experience&#10;Machine Learning, TensorFlow&#10;SQL, Data Modeling"
+                className="w-full h-24 p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-text-light dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent transition-all"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                One requirement per line
+              </p>
+            </div>
+
+            {/* Top N Selector */}
+            <div className="space-y-2">
+              <label className="block text-sm font-bold text-text-light dark:text-white">
+                Number of Top Candidates to Rank
+              </label>
+              <select
+                value={topN}
+                onChange={(e) => setTopN(Number(e.target.value))}
+                className="w-full p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-text-light dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-transparent transition-all"
+              >
+                <option value={5}>Top 5 Candidates</option>
+                <option value={10}>Top 10 Candidates</option>
+                <option value={15}>Top 15 Candidates</option>
+                <option value={20}>Top 20 Candidates</option>
+              </select>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                System will rank the best {topN} resumes out of all uploaded
               </p>
             </div>
           </div>
@@ -190,21 +257,20 @@ export default function UploadPage() {
           <button
             onClick={handleProcess}
             disabled={!canProcess || isProcessing}
-            className={`flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold text-base shadow-lg transition-all duration-200 ${
-              canProcess && !isProcessing
+            className={`flex items-center justify-center gap-3 px-6 py-4 rounded-xl font-bold text-base shadow-lg transition-all duration-200 ${canProcess && !isProcessing
                 ? 'bg-primary hover:bg-blue-700 text-white hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]'
                 : 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-            }`}
+              }`}
           >
             {isProcessing ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                Processing Documents...
+                Processing & Ranking Resumes...
               </>
             ) : (
               <>
                 <CheckCircle2 className="w-5 h-5" />
-                Process Documents
+                Process & Rank Resumes
               </>
             )}
           </button>
@@ -222,6 +288,7 @@ export default function UploadPage() {
                 </p>
                 <ul className="mt-1 text-xs text-yellow-700 dark:text-yellow-400 list-disc list-inside space-y-0.5">
                   {files.length === 0 && <li>Upload at least one resume</li>}
+                  {!jobTitle.trim() && <li>Provide a job title</li>}
                   {!jobDescription.trim() && <li>Provide a job description</li>}
                 </ul>
               </div>
@@ -325,7 +392,7 @@ export default function UploadPage() {
                   🎉 Resumes Processed Successfully!
                 </h3>
                 <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">
-                  <strong>{uploadedFiles.length}</strong> resume{uploadedFiles.length > 1 ? 's' : ''} uploaded and analyzed. 
+                  <strong>{uploadedFiles.length}</strong> resume{uploadedFiles.length > 1 ? 's' : ''} uploaded and analyzed.
                   View detailed insights and analytics now.
                 </p>
                 <div className="flex gap-3">

@@ -3,6 +3,7 @@
 import { Download, TrendingUp, Users, Briefcase, FileText, Target } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { analyticsApi, jobApi, DashboardStats } from '@/lib/api'
+import RankedCandidatesDisplay from '@/components/RankedCandidatesDisplay'
 
 interface SkillDistribution {
   skill: string
@@ -24,30 +25,51 @@ interface Job {
   title: string
 }
 
+interface RankedOverviewData {
+  jobs: Array<{ id: number; title: string }>
+  ranked_resumes: Array<{
+    rank: number
+    resume_id: number
+    candidate_name: string
+    score: number
+    skills: string[]
+    matched_keywords: string[]
+  }>
+  score_distribution: Array<{ range: string; count: number }>
+  keyword_matches: Array<{ keyword: string; count: number; percentage: number }>
+  selected_job: { id: number; title: string } | null
+  message?: string
+  error?: string
+}
+
 export default function AnalyticsPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [skills, setSkills] = useState<SkillDistribution[]>([])
   const [matchesData, setMatchesData] = useState<MatchesAnalytics | null>(null)
   const [jobs, setJobs] = useState<Job[]>([])
   const [selectedJob, setSelectedJob] = useState<number | undefined>(undefined)
+  const [rankedCandidates, setRankedCandidates] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchAnalytics()
     fetchJobs()
-    fetchMatchesData() // Fetch matches data on initial load
+    fetchMatchesData()
+    fetchRankedCandidates()
   }, [])
 
   useEffect(() => {
     if (selectedJob !== undefined) {
       fetchMatchesData(selectedJob)
+      fetchRankedCandidates(selectedJob)
     } else {
-      fetchMatchesData() // Fetch all matches when no job is selected
+      fetchMatchesData()
+      fetchRankedCandidates()
     }
   }, [selectedJob])
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (jobId?: number) => {
     try {
       setLoading(true)
       setError(null)
@@ -80,8 +102,28 @@ export default function AnalyticsPage() {
     try {
       const response = await analyticsApi.getMatchesAnalytics(jobId)
       setMatchesData(response.data)
+
+      // Also fetch skills for this job
+      const skillsResponse = await analyticsApi.getSkillsDistribution(10)
+      setSkills(skillsResponse.data)
     } catch (err) {
       console.error('Error fetching matches data:', err)
+    }
+  }
+
+  const fetchRankedCandidates = async (jobId?: number) => {
+    try {
+      console.log('Fetching ranked candidates for job:', jobId)
+      const response = await analyticsApi.getRankedCandidates(jobId)
+      console.log('Ranked candidates response:', response.data)
+      setRankedCandidates(response.data)
+    } catch (err: any) {
+      console.error('Error fetching ranked candidates:', err)
+      setRankedCandidates({
+        candidates: [],
+        score_distribution: [],
+        message: 'Failed to load ranked candidates'
+      })
     }
   }
 
@@ -101,6 +143,12 @@ export default function AnalyticsPage() {
       console.error('Error exporting data:', err)
       alert('Failed to export data')
     }
+  }
+
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return 'text-green-600 bg-green-50'
+    if (score >= 40) return 'text-yellow-600 bg-yellow-50'
+    return 'text-red-600 bg-red-50'
   }
 
   if (loading) {
@@ -221,6 +269,33 @@ export default function AnalyticsPage() {
         </div>
       )}
 
+      {/* Ranked Candidates Section */}
+      {rankedCandidates && rankedCandidates.candidates && rankedCandidates.candidates.length > 0 ? (
+        <RankedCandidatesDisplay
+          candidates={rankedCandidates.candidates}
+          scoreDistribution={rankedCandidates.score_distribution}
+        />
+      ) : rankedCandidates && rankedCandidates.message ? (
+        <div className="glass-card rounded-xl p-12 text-center">
+          <div className="text-6xl mb-4">📊</div>
+          <p className="text-lg text-gray-600 dark:text-gray-400 mb-6">{rankedCandidates.message}</p>
+          {rankedCandidates.message.includes("Upload resumes") && (
+            <a href="/upload" className="inline-block px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 font-bold">
+              Upload Resumes & Rank Candidates
+            </a>
+          )}
+        </div>
+      ) : (
+        <div className="glass-card rounded-xl p-12 text-center">
+          <div className="text-6xl mb-4">🎯</div>
+          <p className="text-lg text-gray-600 dark:text-gray-400 mb-6">No ranked candidates yet.</p>
+          <a href="/upload" className="inline-block px-8 py-3 bg-primary text-white rounded-lg hover:bg-primary/90 font-bold">
+            Upload Resumes to Get Started
+          </a>
+        </div>
+      )}
+
+      {/* Existing Analytics Sections */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass-card rounded-xl p-6">
           <h3 className="text-lg font-bold mb-4">Top Skills Distribution</h3>
@@ -278,32 +353,6 @@ export default function AnalyticsPage() {
           )}
         </div>
       </div>
-
-      {matchesData && Object.keys(matchesData.score_distribution).length > 0 && (
-        <div className="glass-card rounded-xl p-6">
-          <h3 className="text-lg font-bold mb-4">Score Distribution</h3>
-          <div className="space-y-2">
-            {Object.entries(matchesData.score_distribution).sort(([a], [b]) => {
-              const aStart = parseInt(a.split('-')[0])
-              const bStart = parseInt(b.split('-')[0])
-              return bStart - aStart
-            }).map(([range, count]) => {
-              const maxCount = Math.max(...Object.values(matchesData.score_distribution))
-              const percentage = (count / maxCount) * 100
-              return (
-                <div key={range} className="flex items-center gap-4">
-                  <span className="text-sm font-medium w-20">{range}%</span>
-                  <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-6">
-                    <div className="bg-gradient-to-r from-primary to-secondary h-6 rounded-full flex items-center justify-end pr-2" style={{ width: `${percentage}%` }}>
-                      {count > 0 && <span className="text-xs font-bold text-white">{count}</span>}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {stats.total_resumes === 0 && (
         <div className="glass-card rounded-xl p-12 text-center">

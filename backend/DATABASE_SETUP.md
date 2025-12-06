@@ -5,7 +5,7 @@
 Run the automated setup script:
 
 ```bash
-cd /home/Afsah/Desktop/resume-screening/backend
+cd /home/haseeb-raza/Desktop/resume-screening/backend
 ./setup_database.sh
 ```
 
@@ -179,7 +179,7 @@ sudo -u postgres psql resumematch < backup.sql
 After database setup, test the backend:
 
 ```bash
-cd /home/Afsah/Desktop/resume-screening/backend
+cd /home/haseeb-raza/Desktop/resume-screening/backend
 source ../venv/bin/activate
 python -c "from app.database import engine; print('✅ Database connection successful!')"
 ```

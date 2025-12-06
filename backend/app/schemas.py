@@ -27,6 +27,45 @@ class UserUpdate(BaseModel):
     avatar_url: Optional[str] = None
 
 
+class NotificationResponse(BaseModel):
+    id: int
+    user_id: int
+    title: str
+    message: str
+    type: str
+    link: Optional[str] = None
+    is_read: bool
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# Ranked Resumes Schemas
+class RankedResumeItem(BaseModel):
+    resume_id: int
+    candidate_name: str
+    embedding_score: float
+    rerank_score: Optional[float] = None
+    skills: List[str]
+    summary: str
+    explanation: str
+    text: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class RankedResumesRequest(BaseModel):
+    job_description: str
+    top_k: int = Field(default=50, ge=1, le=100)
+    top_n: int = Field(default=5, ge=1, le=20)
+
+
+class RankedResumesResponse(BaseModel):
+    ranked_resumes: List[RankedResumeItem]
+    pipeline_config: Dict[str, Any]
+    stages: Optional[Dict[str, Any]] = None
+
+
 class UserResponse(UserBase):
     id: int
     is_active: bool

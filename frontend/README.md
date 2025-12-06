@@ -33,7 +33,7 @@ cp .env.example .env.local
 
 3. Update `.env.local` with your configuration:
 ```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 ## 🚀 Development
@@ -44,6 +44,33 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Running on Custom Ports
+
+**Frontend on custom port:**
+```bash
+npm run dev -- -p 3005
+```
+Then open [http://localhost:3005](http://localhost:3005)
+
+**Backend on custom port:**
+If your backend runs on a different port (e.g., 8001), update `.env.local`:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8001
+```
+
+**Both custom ports:**
+```bash
+# Terminal 1 - Backend on port 8001
+cd ../backend
+source ../venv/bin/activate
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+
+# Terminal 2 - Frontend on port 3005
+npm run dev -- -p 3005
+```
+
+Don't forget to update `.env.local` with the backend URL!
 
 ## 📦 Build for Production
 
@@ -118,7 +145,7 @@ The frontend expects the following backend endpoints:
 ## 🔐 Environment Variables
 
 ```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 ## 📝 License
